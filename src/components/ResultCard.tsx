@@ -1,4 +1,5 @@
 import { Apple, Dumbbell } from "lucide-react";
+import { getExerciseImage, getExerciseCategoryLabel } from "@/lib/exerciseImages";
 
 export interface DayPlan {
   day: string;
@@ -50,11 +51,23 @@ const ResultCard = ({ plan, highlighted = false }: ResultCardProps) => {
             </div>
             <h3 className="font-semibold text-foreground">What to Do</h3>
           </div>
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {plan.workout.map((item, i) => (
-              <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                <span className="text-primary mt-0.5">•</span>
-                {item}
+              <li key={i} className="flex items-start gap-3">
+                <img
+                  src={getExerciseImage(item)}
+                  alt={getExerciseCategoryLabel(item)}
+                  loading="lazy"
+                  width={48}
+                  height={48}
+                  className="w-12 h-12 rounded-xl object-cover flex-shrink-0 bg-accent"
+                />
+                <div>
+                  <span className="text-[10px] font-medium text-accent-foreground bg-accent px-1.5 py-0.5 rounded-md">
+                    {getExerciseCategoryLabel(item)}
+                  </span>
+                  <p className="text-sm text-muted-foreground mt-0.5">{item}</p>
+                </div>
               </li>
             ))}
           </ul>
