@@ -14,6 +14,8 @@ export interface ProductIdea {
   description: string;
   targetUser: string;
   difficulty: "Easy" | "Medium" | "Hard";
+  revenueModel: string;
+  estimatedMRR: string;
 }
 
 export interface InsightData {
@@ -99,6 +101,8 @@ const mockDataMap: Record<string, InsightData> = {
         description: "AI-powered tool that auto-edits raw footage: removes silences, adds captions, suggests cuts, and exports ready-to-upload videos.",
         targetUser: "YouTube creators with 1K-100K subscribers",
         difficulty: "Hard",
+        revenueModel: "SaaS Subscription",
+        estimatedMRR: "$15K-50K",
       },
       {
         id: "2",
@@ -106,6 +110,8 @@ const mockDataMap: Record<string, InsightData> = {
         description: "Generate click-worthy thumbnails and titles using AI trained on top-performing videos in your niche.",
         targetUser: "Content creators struggling with CTR",
         difficulty: "Medium",
+        revenueModel: "Freemium + Credits",
+        estimatedMRR: "$8K-25K",
       },
       {
         id: "3",
@@ -113,6 +119,8 @@ const mockDataMap: Record<string, InsightData> = {
         description: "Automatically identify the best moments in long videos and convert them into vertical Shorts/Reels with one click.",
         targetUser: "Creators wanting to grow on multiple platforms",
         difficulty: "Medium",
+        revenueModel: "Usage-based Pricing",
+        estimatedMRR: "$10K-30K",
       },
       {
         id: "4",
@@ -120,6 +128,8 @@ const mockDataMap: Record<string, InsightData> = {
         description: "All-in-one YouTube dashboard: scheduling, analytics, SEO scores, competitor tracking, and content calendar.",
         targetUser: "Professional YouTubers and agencies",
         difficulty: "Hard",
+        revenueModel: "Tiered SaaS",
+        estimatedMRR: "$20K-80K",
       },
       {
         id: "5",
@@ -127,6 +137,8 @@ const mockDataMap: Record<string, InsightData> = {
         description: "Auto-generate video chapters, timestamps, and descriptions from transcripts. Boost SEO with zero effort.",
         targetUser: "Educational and tutorial creators",
         difficulty: "Easy",
+        revenueModel: "Freemium",
+        estimatedMRR: "$3K-10K",
       },
     ],
   },
