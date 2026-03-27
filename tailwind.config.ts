@@ -90,10 +90,7 @@ export default {
       animation: {
         "accordion-down": "accordion-down 0.3s ease-out",
         "accordion-up": "accordion-up 0.3s ease-out",
-        "fade-in-up": "fade-in-up 0.5s ease-out forwards",
-        "fade-in-up-delay-1": "fade-in-up 0.5s ease-out 0.1s forwards",
-        "fade-in-up-delay-2": "fade-in-up 0.5s ease-out 0.2s forwards",
-        "fade-in-up-delay-3": "fade-in-up 0.5s ease-out 0.3s forwards",
+        "fade-in-up": "fade-in-up 0.6s ease-out both",
         "pulse-soft": "pulse-soft 2s ease-in-out infinite",
       },
     },
