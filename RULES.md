@@ -40,3 +40,12 @@
 
 ## 9. Documentation
 - Update `README.md` when startup steps, commands, or architecture assumptions change.
+
+## 10. Implementation Rules (Demand Radar)
+- Keep existing UI structure unchanged unless explicitly requested.
+- Use TypeScript types for all API responses.
+- All business data must conform to the `DemandReport` schema.
+- Place API logic under `app/api`.
+- Keep components small and reusable.
+- Do not introduce new libraries unless strictly necessary.
+- Follow mock-first development, then integrate real APIs.
