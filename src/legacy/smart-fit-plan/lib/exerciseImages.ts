@@ -1,7 +1,7 @@
-import hiitImg from "@/assets/exercise-hiit.jpg";
-import strengthImg from "@/assets/exercise-strength.jpg";
-import cardioImg from "@/assets/exercise-cardio.jpg";
-import recoveryImg from "@/assets/exercise-recovery.jpg";
+import hiitImg from "../assets/exercise-hiit.jpg";
+import strengthImg from "../assets/exercise-strength.jpg";
+import cardioImg from "../assets/exercise-cardio.jpg";
+import recoveryImg from "../assets/exercise-recovery.jpg";
 
 type ExerciseCategory = "hiit" | "strength" | "cardio" | "recovery";
 

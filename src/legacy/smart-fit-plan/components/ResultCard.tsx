@@ -1,5 +1,5 @@
 import { Apple, Dumbbell } from "lucide-react";
-import { getExerciseImage, getExerciseCategoryLabel } from "@/lib/exerciseImages";
+import { getExerciseImage, getExerciseCategoryLabel } from "../lib/exerciseImages";
 
 export interface DayPlan {
   day: string;

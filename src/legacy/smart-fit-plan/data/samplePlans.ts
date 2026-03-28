@@ -1,4 +1,4 @@
-import type { DayPlan } from "@/components/ResultCard";
+import type { DayPlan } from "../components/ResultCard";
 
 export const samplePlans: DayPlan[] = [
   {

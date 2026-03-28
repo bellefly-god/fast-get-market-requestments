@@ -1,11 +1,11 @@
 import { useState, useRef } from "react";
-import HeroSection from "@/components/HeroSection";
-import InputForm from "@/components/InputForm";
-import LoadingSkeleton from "@/components/LoadingSkeleton";
-import ResultCard from "@/components/ResultCard";
-import WeeklyPlan from "@/components/WeeklyPlan";
-import FooterCta from "@/components/FooterCta";
-import { samplePlans } from "@/data/samplePlans";
+import HeroSection from "../components/HeroSection";
+import InputForm from "../components/InputForm";
+import LoadingSkeleton from "../components/LoadingSkeleton";
+import ResultCard from "../components/ResultCard";
+import WeeklyPlan from "../components/WeeklyPlan";
+import FooterCta from "../components/FooterCta";
+import { samplePlans } from "../data/samplePlans";
 
 const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
