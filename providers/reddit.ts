@@ -1,4 +1,4 @@
-import type { QuoteItem, ReportSource } from "../../src/types/demand-report";
+import type { QuoteItem, ReportSource } from "../src/types/demand-report";
 
 export async function getRedditSignals(): Promise<{ quotes: QuoteItem[]; sources: ReportSource[] }> {
   // TODO: Replace placeholder implementation with Reddit collection and ranking.

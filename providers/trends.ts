@@ -1,4 +1,4 @@
-import type { ReportSource } from "../../src/types/demand-report";
+import type { ReportSource } from "../src/types/demand-report";
 
 export async function getTrendSources(): Promise<ReportSource[]> {
   // TODO: Replace placeholder implementation with live trends ingestion.

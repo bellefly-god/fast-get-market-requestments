@@ -1,4 +1,4 @@
-import type { DemandReport } from "../../src/types/demand-report";
+import type { DemandReport } from "../src/types/demand-report";
 
 type AIAnalysisInput = {
   keyword: string;

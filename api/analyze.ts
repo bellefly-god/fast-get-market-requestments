@@ -1,7 +1,7 @@
 import type { DemandReport, OpportunityMetrics, ProductIdea, QuoteItem, ReportSource, TrendLabel } from "../src/types/demand-report";
-import { analyzeWithAI } from "./providers/ai";
-import { getTrendSources } from "./providers/trends";
-import { getRedditSignals } from "./providers/reddit";
+import { analyzeWithAI } from "../providers/ai";
+import { getTrendSources } from "../providers/trends";
+import { getRedditSignals } from "../providers/reddit";
 
 type AnalyzeRequestBody = {
   keyword?: string;
