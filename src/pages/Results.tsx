@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import type { DemandReport } from "@/types/demand-report";
 import { Zap, ArrowLeft, Search, TrendingUp, MessageSquare, Lightbulb, Target, BarChart3, DollarSign, Users, Rocket } from "lucide-react";
 import ResultsLoading from "@/components/ResultsLoading";
+import { readRecentSearches, saveRecentSearch } from "@/lib/recentSearches";
 
 const Results = () => {
   const [searchParams] = useSearchParams();
@@ -12,6 +13,11 @@ const Results = () => {
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<DemandReport | null>(null);
   const [newQuery, setNewQuery] = useState(query);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+  useEffect(() => {
+    setRecentSearches(readRecentSearches());
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -36,6 +42,7 @@ const Results = () => {
 
         const data = (await response.json()) as DemandReport;
         setReport(data);
+        setRecentSearches(saveRecentSearch(data.keyword));
       } catch (err) {
         if (controller.signal.aborted) return;
         setReport(null);
@@ -55,7 +62,9 @@ const Results = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (newQuery.trim()) {
-      navigate(`/results?q=${encodeURIComponent(newQuery.trim())}`);
+      const nextKeyword = newQuery.trim();
+      setRecentSearches(saveRecentSearch(nextKeyword));
+      navigate(`/results?q=${encodeURIComponent(nextKeyword)}`);
     }
   };
 
@@ -131,6 +140,22 @@ const Results = () => {
           <h1 className="text-4xl md:text-5xl font-extrabold text-foreground tracking-tight">{report.keyword}</h1>
           <p className="text-sm text-muted-foreground mt-2">{report.trendScore}</p>
           <p className="text-sm text-muted-foreground">{report.trendLabel}</p>
+          {recentSearches.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-4">
+              {recentSearches.map((item) => (
+                <button
+                  key={item}
+                  onClick={() => {
+                    setNewQuery(item);
+                    navigate(`/results?q=${encodeURIComponent(item)}`);
+                  }}
+                  className="text-xs text-foreground/80 hover:text-foreground glass rounded-full px-3 py-1.5 transition-colors"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Opportunity Score Hero */}

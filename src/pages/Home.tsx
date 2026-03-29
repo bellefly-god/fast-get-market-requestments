@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Zap, TrendingUp, Lightbulb, BarChart3 } from "lucide-react";
+import { readRecentSearches, saveRecentSearch } from "@/lib/recentSearches";
 
 const features = [
   { icon: TrendingUp, title: "Pain Points", desc: "Real user complaints from Reddit, Twitter & forums" },
@@ -10,12 +11,19 @@ const features = [
 
 const Home = () => {
   const [keyword, setKeyword] = useState("");
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    setRecentSearches(readRecentSearches());
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (keyword.trim()) {
-      navigate(`/results?q=${encodeURIComponent(keyword.trim())}`);
+      const nextKeyword = keyword.trim();
+      setRecentSearches(saveRecentSearch(nextKeyword));
+      navigate(`/results?q=${encodeURIComponent(nextKeyword)}`);
     }
   };
 
@@ -79,13 +87,34 @@ const Home = () => {
             {["youtube automation", "ai writing tools", "job search", "personal finance", "fitness tracking"].map((tag) => (
               <button
                 key={tag}
-                onClick={() => { setKeyword(tag); navigate(`/results?q=${encodeURIComponent(tag)}`); }}
+                onClick={() => {
+                  setKeyword(tag);
+                  setRecentSearches(saveRecentSearch(tag));
+                  navigate(`/results?q=${encodeURIComponent(tag)}`);
+                }}
                 className="text-xs text-muted-foreground hover:text-foreground glass rounded-full px-3 py-1.5 transition-colors"
               >
                 {tag}
               </button>
             ))}
           </div>
+
+          {recentSearches.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-2 mt-4 animate-fade-in-up" style={{ animationDelay: "0.45s" }}>
+              {recentSearches.map((item) => (
+                <button
+                  key={item}
+                  onClick={() => {
+                    setKeyword(item);
+                    navigate(`/results?q=${encodeURIComponent(item)}`);
+                  }}
+                  className="text-xs text-foreground/80 hover:text-foreground glass rounded-full px-3 py-1.5 transition-colors"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </main>
 
