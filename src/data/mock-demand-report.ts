@@ -1,4 +1,4 @@
-import type { DemandReport } from "@/types/demand-report";
+import type { DemandReport } from "../types/demand-report";
 
 export const mockDemandReport: DemandReport = {
   keyword: "youtube automation",
