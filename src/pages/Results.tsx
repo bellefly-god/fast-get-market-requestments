@@ -74,6 +74,11 @@ const Results = () => {
     return "text-red-400";
   };
 
+  const generatedAtLabel = (() => {
+    const parsed = new Date(report?.generatedAt ?? "");
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toLocaleString();
+  })();
+
   if (loading) {
     return <ResultsLoading query={query} />;
   }
@@ -140,6 +145,23 @@ const Results = () => {
           <h1 className="text-4xl md:text-5xl font-extrabold text-foreground tracking-tight">{report.keyword}</h1>
           <p className="text-sm text-muted-foreground mt-2">{report.trendScore}</p>
           <p className="text-sm text-muted-foreground">{report.trendLabel}</p>
+          {generatedAtLabel && (
+            <p className="text-xs text-muted-foreground mt-3">
+              Generated {generatedAtLabel}
+            </p>
+          )}
+          {report.sources.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {report.sources.map((source) => (
+                <span
+                  key={`${source.type}-${source.name}`}
+                  className="text-[11px] text-muted-foreground glass rounded-full px-3 py-1"
+                >
+                  {source.name}
+                </span>
+              ))}
+            </div>
+          )}
           {recentSearches.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-4">
               {recentSearches.map((item) => (
