@@ -3,16 +3,14 @@ import { getRedditSignals } from "../providers/reddit.js";
 import { getTrendSignals } from "../providers/trends.js";
 
 const DEFAULT_KEYWORD = "youtube automation";
+const AI_SOURCE: ReportSource = { name: "AI Synthesis", type: "ai" };
+const REDDIT_SOURCE: ReportSource = { name: "Reddit Signals", type: "reddit" };
+const TREND_SOURCE: ReportSource = { name: "Trend Signals", type: "trends" };
 
 const SAFE_REPORT: DemandReport = {
   keyword: DEFAULT_KEYWORD,
   generatedAt: "2026-03-29T00:00:00.000Z",
-  sources: [
-    {
-      name: "safe-ai-fallback",
-      type: "ai",
-    },
-  ],
+  sources: [AI_SOURCE],
   trendScore: 8,
   trendLabel: "Rising",
   quotes: [
@@ -72,6 +70,21 @@ function asSources(value: unknown, fallback: ReportSource[]): ReportSource[] {
     })
     .filter((item): item is ReportSource => item !== null);
   return next.length > 0 ? next : fallback;
+}
+
+function normalizeSources(value: unknown, fallback: ReportSource[]): ReportSource[] {
+  const normalized = asSources(value, fallback);
+  const deduped: ReportSource[] = [];
+  const seen = new Set<string>();
+
+  for (const source of normalized) {
+    const key = `${source.type}:${source.name}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(source);
+  }
+
+  return deduped.length > 0 ? deduped : fallback;
 }
 
 function asQuotes(value: unknown, fallback: QuoteItem[]): QuoteItem[] {
@@ -148,12 +161,7 @@ function generateAIReport(keyword: string): Partial<DemandReport> {
   return {
     keyword,
     generatedAt: new Date().toISOString(),
-    sources: [
-      {
-        name: "mock-ai",
-        type: "ai",
-      },
-    ],
+    sources: [AI_SOURCE],
     trendScore: 8,
     trendLabel: "Rising",
     quotes: [
@@ -188,7 +196,7 @@ function buildStableReport(input: Partial<DemandReport>): DemandReport {
   return {
     keyword: asString(input.keyword, SAFE_REPORT.keyword),
     generatedAt: asString(input.generatedAt, new Date().toISOString()),
-    sources: asSources(input.sources, SAFE_REPORT.sources),
+    sources: normalizeSources(input.sources, SAFE_REPORT.sources),
     trendScore: clampScore(asNumber(input.trendScore, SAFE_REPORT.trendScore)),
     trendLabel: asTrendLabel(input.trendLabel, SAFE_REPORT.trendLabel),
     quotes: asQuotes(input.quotes, SAFE_REPORT.quotes),
@@ -206,6 +214,7 @@ export function analyzeKeyword(keyword: string): DemandReport {
     const aiReport = generateAIReport(normalizedKeyword);
     let report = buildStableReport(aiReport);
     let redditIncluded = false;
+    let trendIncluded = false;
 
     try {
       const trendSignals = getTrendSignals(normalizedKeyword);
@@ -213,7 +222,9 @@ export function analyzeKeyword(keyword: string): DemandReport {
         ...report,
         trendScore: trendSignals.trendScore,
         trendLabel: trendSignals.trendLabel,
+        sources: [...report.sources, TREND_SOURCE],
       });
+      trendIncluded = true;
       console.log("[lib/analyze] trends success", {
         keyword: normalizedKeyword,
         trendScore: trendSignals.trendScore,
@@ -231,7 +242,7 @@ export function analyzeKeyword(keyword: string): DemandReport {
         ...report,
         quotes: [...report.quotes, ...redditQuotes],
         painPoints: [...report.painPoints, ...redditPainPoints],
-        sources: redditQuotes.length > 0 ? [...report.sources, { name: "reddit-signals", type: "reddit" }] : report.sources,
+        sources: redditQuotes.length > 0 ? [...report.sources, REDDIT_SOURCE] : report.sources,
       });
       redditIncluded = redditQuotes.length > 0;
       console.log("[lib/analyze] reddit success", { keyword: normalizedKeyword, quotes: redditQuotes.length, painPoints: redditPainPoints.length });
@@ -239,6 +250,7 @@ export function analyzeKeyword(keyword: string): DemandReport {
       console.error("[lib/analyze] reddit failure", error);
     }
 
+    console.log("[lib/analyze] trends included", { keyword: normalizedKeyword, included: trendIncluded });
     console.log("[lib/analyze] reddit included", { keyword: normalizedKeyword, included: redditIncluded });
 
     console.log("[lib/analyze] response source", { source: "ai", keyword: report.keyword });
