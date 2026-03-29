@@ -4,32 +4,6 @@ import type { DemandReport } from "@/types/demand-report";
 import { Zap, ArrowLeft, Search, TrendingUp, MessageSquare, Lightbulb, Target, BarChart3, DollarSign, Users, Rocket } from "lucide-react";
 import ResultsLoading from "@/components/ResultsLoading";
 
-const RECENT_SEARCHES_KEY = "demand-radar.recent-searches";
-const RECENT_SEARCH_LIMIT = 8;
-
-type ApiErrorResponse = {
-  error?: {
-    code?: string;
-    message?: string;
-  };
-};
-
-function saveRecentSearch(keyword: string) {
-  if (typeof window === "undefined") return;
-
-  const normalized = keyword.trim();
-  if (!normalized) return;
-
-  try {
-    const existing = window.localStorage.getItem(RECENT_SEARCHES_KEY);
-    const recent = existing ? ((JSON.parse(existing) as string[]) ?? []) : [];
-    const next = [normalized, ...recent.filter((item) => item !== normalized)].slice(0, RECENT_SEARCH_LIMIT);
-    window.localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
-  } catch {
-    window.localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify([normalized]));
-  }
-}
-
 const Results = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -57,13 +31,11 @@ const Results = () => {
         });
 
         if (!response.ok) {
-          const errorPayload = (await response.json().catch(() => null)) as ApiErrorResponse | null;
-          throw new Error(errorPayload?.error?.message || `Analyze request failed: ${response.status}`);
+          throw new Error(`Analyze request failed: ${response.status}`);
         }
 
         const data = (await response.json()) as DemandReport;
         setReport(data);
-        saveRecentSearch(data.keyword);
       } catch (err) {
         if (controller.signal.aborted) return;
         setReport(null);
