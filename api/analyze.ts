@@ -1,3 +1,5 @@
+import { analyzeKeyword } from "../lib/analyze";
+
 type AnalyzeRequestBody = {
   keyword?: string;
 };
@@ -72,17 +74,10 @@ export default function handler(req: HandlerRequest, res: HandlerResponse) {
       return sendError(res, 400, "INVALID_KEYWORD", "`keyword` must be a string.");
     }
 
-    return import("../lib/analyze")
-      .then(({ analyzeKeyword }) => {
-        const report = analyzeKeyword(body.keyword ?? "");
+    const report = analyzeKeyword(body.keyword ?? "");
 
-        console.log("[api/analyze] success", { keyword: report.keyword });
-        return res.status(200).json(report);
-      })
-      .catch((error) => {
-        console.error("[api/analyze] failed to load analyzeKeyword", error);
-        return sendError(res, 500, "INTERNAL_ERROR", "Unexpected server error.");
-      });
+    console.log("[api/analyze] success", { keyword: report.keyword });
+    return res.status(200).json(report);
   } catch (error) {
     console.error("[api/analyze] unexpected error", error);
     return sendError(res, 500, "INTERNAL_ERROR", "Unexpected server error.");
