@@ -1,30 +1,45 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import type { DemandReport } from "@/types/demand-report";
-import { Zap, ArrowLeft, Search, TrendingUp, MessageSquare, Lightbulb, Target, BarChart3, DollarSign, Users, Rocket, Copy } from "lucide-react";
+import { Zap, ArrowLeft, Search, TrendingUp, MessageSquare, Lightbulb, Target, BarChart3, DollarSign, Users, Rocket, Copy, X } from "lucide-react";
 import ResultsLoading from "@/components/ResultsLoading";
 import { readRecentSearches, saveRecentSearch } from "@/lib/recentSearches";
 import { useToast } from "@/hooks/use-toast";
+import { deleteSavedReport, getSavedReport, readSavedReports, saveReport } from "@/lib/savedReports";
 
 const Results = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const query = searchParams.get("q") || "";
+  const savedMode = searchParams.get("saved") === "1";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<DemandReport | null>(null);
   const [newQuery, setNewQuery] = useState(query);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [savedReports, setSavedReports] = useState<DemandReport[]>([]);
 
   useEffect(() => {
     setRecentSearches(readRecentSearches());
+    setSavedReports(readSavedReports());
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
 
     const fetchReport = async () => {
+      const savedReport = savedMode ? getSavedReport(query) : null;
+
+      if (savedReport) {
+        setReport(savedReport);
+        setRecentSearches(saveRecentSearch(savedReport.keyword));
+        setSavedReports(readSavedReports());
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
 
@@ -45,6 +60,7 @@ const Results = () => {
         const data = (await response.json()) as DemandReport;
         setReport(data);
         setRecentSearches(saveRecentSearch(data.keyword));
+        setSavedReports(saveReport(data));
       } catch (err) {
         if (controller.signal.aborted) return;
         setReport(null);
@@ -59,7 +75,7 @@ const Results = () => {
     void fetchReport();
 
     return () => controller.abort();
-  }, [query]);
+  }, [query, savedMode]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,6 +178,15 @@ const Results = () => {
     }
   };
 
+  const handleDeleteSavedReport = (keywordToDelete: string) => {
+    const next = deleteSavedReport(keywordToDelete);
+    setSavedReports(next);
+
+    if (report.keyword.trim().toLowerCase() === keywordToDelete.trim().toLowerCase() && savedMode) {
+      navigate("/");
+    }
+  };
+
   return (
     <div className="min-h-screen gradient-bg">
       {/* Header */}
@@ -220,6 +245,33 @@ const Results = () => {
                   {item}
                 </button>
               ))}
+            </div>
+          )}
+          {savedReports.length > 0 && (
+            <div className="mt-5">
+              <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-2 font-medium">Saved Reports</p>
+              <div className="flex flex-wrap gap-2">
+                {savedReports.map((savedReport) => (
+                  <div key={`${savedReport.keyword}-${savedReport.generatedAt}`} className="flex items-center glass rounded-full overflow-hidden">
+                    <button
+                      onClick={() => {
+                        setNewQuery(savedReport.keyword);
+                        navigate(`/results?q=${encodeURIComponent(savedReport.keyword)}&saved=1`);
+                      }}
+                      className="text-xs text-foreground/80 hover:text-foreground px-3 py-1.5 transition-colors"
+                    >
+                      {savedReport.keyword}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSavedReport(savedReport.keyword)}
+                      aria-label={`Delete saved report for ${savedReport.keyword}`}
+                      className="px-2 py-1.5 text-muted-foreground hover:text-foreground transition-colors border-l border-border/50"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Zap, TrendingUp, Lightbulb, BarChart3 } from "lucide-react";
+import { Search, Zap, TrendingUp, Lightbulb, BarChart3, X } from "lucide-react";
 import { readRecentSearches, saveRecentSearch } from "@/lib/recentSearches";
+import type { DemandReport } from "@/types/demand-report";
+import { deleteSavedReport, readSavedReports } from "@/lib/savedReports";
 
 const features = [
   { icon: TrendingUp, title: "Pain Points", desc: "Real user complaints from Reddit, Twitter & forums" },
@@ -12,10 +14,12 @@ const features = [
 const Home = () => {
   const [keyword, setKeyword] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [savedReports, setSavedReports] = useState<DemandReport[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
     setRecentSearches(readRecentSearches());
+    setSavedReports(readSavedReports());
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -25,6 +29,10 @@ const Home = () => {
       setRecentSearches(saveRecentSearch(nextKeyword));
       navigate(`/results?q=${encodeURIComponent(nextKeyword)}`);
     }
+  };
+
+  const handleDeleteSavedReport = (keywordToDelete: string) => {
+    setSavedReports(deleteSavedReport(keywordToDelete));
   };
 
   return (
@@ -115,11 +123,36 @@ const Home = () => {
               ))}
             </div>
           )}
+
+          {savedReports.length > 0 && (
+            <div className="mt-6 animate-fade-in-up" style={{ animationDelay: "0.5s" }}>
+              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3 font-medium">Saved Reports</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {savedReports.map((report) => (
+                  <div key={`${report.keyword}-${report.generatedAt}`} className="flex items-center glass rounded-full overflow-hidden">
+                    <button
+                      onClick={() => navigate(`/results?q=${encodeURIComponent(report.keyword)}&saved=1`)}
+                      className="text-xs text-foreground/80 hover:text-foreground px-3 py-1.5 transition-colors"
+                    >
+                      {report.keyword}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSavedReport(report.keyword)}
+                      aria-label={`Delete saved report for ${report.keyword}`}
+                      className="px-2 py-1.5 text-muted-foreground hover:text-foreground transition-colors border-l border-border/50"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
       {/* Features */}
-      <section className="px-6 pb-20 pt-16 max-w-4xl mx-auto w-full animate-fade-in-up" style={{ animationDelay: "0.5s" }}>
+      <section className="px-6 pb-20 pt-16 max-w-4xl mx-auto w-full animate-fade-in-up" style={{ animationDelay: "0.55s" }}>
         <div className="grid md:grid-cols-3 gap-6">
           {features.map((f) => (
             <div key={f.title} className="glass rounded-2xl p-6 hover:shadow-glow transition-all duration-300">
