@@ -1,4 +1,5 @@
 import type { DemandReport, OpportunityMetrics, ProductIdea, QuoteItem, ReportSource, TrendLabel } from "../src/types/demand-report";
+import { getRedditSignals } from "../providers/reddit";
 
 const DEFAULT_KEYWORD = "youtube automation";
 
@@ -179,7 +180,21 @@ export function analyzeKeyword(keyword: string): DemandReport {
   const normalizedKeyword = asString(keyword, DEFAULT_KEYWORD);
 
   try {
-    const report = buildStableReport(generateAIReport(normalizedKeyword));
+    const aiReport = generateAIReport(normalizedKeyword);
+    let report = buildStableReport(aiReport);
+
+    try {
+      const redditQuotes = getRedditSignals(normalizedKeyword);
+      report = buildStableReport({
+        ...report,
+        quotes: [...report.quotes, ...redditQuotes],
+        sources: [...report.sources, { name: "reddit-signals", type: "reddit" }],
+      });
+      console.log("[lib/analyze] reddit success", { keyword: normalizedKeyword, quotes: redditQuotes.length });
+    } catch (error) {
+      console.error("[lib/analyze] reddit failure", error);
+    }
+
     console.log("[lib/analyze] response source", { source: "ai", keyword: report.keyword });
     return report;
   } catch (error) {
