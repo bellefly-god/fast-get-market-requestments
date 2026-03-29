@@ -46,7 +46,7 @@ function sendError(res: HandlerResponse, status: number, code: string, message: 
   return res.status(status).json(payload);
 }
 
-export default async function handler(req: HandlerRequest, res: HandlerResponse) {
+export default function handler(req: HandlerRequest, res: HandlerResponse) {
   const method = req.method ?? "UNKNOWN";
   console.log("[api/analyze] handler start", { method });
 
@@ -72,11 +72,17 @@ export default async function handler(req: HandlerRequest, res: HandlerResponse)
       return sendError(res, 400, "INVALID_KEYWORD", "`keyword` must be a string.");
     }
 
-    const { analyzeKeyword } = await import("../lib/analyze");
-    const report = analyzeKeyword(body.keyword ?? "");
+    return import("../lib/analyze")
+      .then(({ analyzeKeyword }) => {
+        const report = analyzeKeyword(body.keyword ?? "");
 
-    console.log("[api/analyze] success", { keyword: report.keyword });
-    return res.status(200).json(report);
+        console.log("[api/analyze] success", { keyword: report.keyword });
+        return res.status(200).json(report);
+      })
+      .catch((error) => {
+        console.error("[api/analyze] failed to load analyzeKeyword", error);
+        return sendError(res, 500, "INTERNAL_ERROR", "Unexpected server error.");
+      });
   } catch (error) {
     console.error("[api/analyze] unexpected error", error);
     return sendError(res, 500, "INTERNAL_ERROR", "Unexpected server error.");
