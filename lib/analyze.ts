@@ -91,8 +91,30 @@ function asQuotes(value: unknown, fallback: QuoteItem[]): QuoteItem[] {
 
 function asPainPoints(value: unknown, fallback: string[]): string[] {
   if (!Array.isArray(value)) return fallback;
-  const next = value.map((item) => asString(item, "")).filter(Boolean);
+  const next = Array.from(new Set(value.map((item) => asString(item, "")).filter(Boolean)));
   return next.length > 0 ? next : fallback;
+}
+
+function derivePainPointsFromQuotes(quotes: QuoteItem[], keyword: string): string[] {
+  if (quotes.length === 0) return [];
+
+  const normalizedKeyword = asString(keyword, DEFAULT_KEYWORD);
+  const combinedText = quotes.map((quote) => quote.text.toLowerCase()).join(" ");
+  const derived: string[] = [];
+
+  if (combinedText.includes("manual")) {
+    derived.push(`Work around "${normalizedKeyword}" still feels too manual for users.`);
+  }
+
+  if (combinedText.includes("clearer") || combinedText.includes("example")) {
+    derived.push(`Users exploring "${normalizedKeyword}" want clearer guidance and examples before committing.`);
+  }
+
+  if (combinedText.includes("faster") || combinedText.includes("speed")) {
+    derived.push(`Teams evaluating "${normalizedKeyword}" need faster validation loops and signal collection.`);
+  }
+
+  return derived.slice(0, 2);
 }
 
 function asProductIdeas(value: unknown, fallback: ProductIdea[]): ProductIdea[] {
@@ -182,18 +204,25 @@ export function analyzeKeyword(keyword: string): DemandReport {
   try {
     const aiReport = generateAIReport(normalizedKeyword);
     let report = buildStableReport(aiReport);
+    let redditIncluded = false;
 
     try {
-      const redditQuotes = getRedditSignals(normalizedKeyword);
+      const redditResult = getRedditSignals(normalizedKeyword);
+      const redditQuotes = asQuotes(redditResult, []);
+      const redditPainPoints = derivePainPointsFromQuotes(redditQuotes, normalizedKeyword);
       report = buildStableReport({
         ...report,
         quotes: [...report.quotes, ...redditQuotes],
-        sources: [...report.sources, { name: "reddit-signals", type: "reddit" }],
+        painPoints: [...report.painPoints, ...redditPainPoints],
+        sources: redditQuotes.length > 0 ? [...report.sources, { name: "reddit-signals", type: "reddit" }] : report.sources,
       });
-      console.log("[lib/analyze] reddit success", { keyword: normalizedKeyword, quotes: redditQuotes.length });
+      redditIncluded = redditQuotes.length > 0;
+      console.log("[lib/analyze] reddit success", { keyword: normalizedKeyword, quotes: redditQuotes.length, painPoints: redditPainPoints.length });
     } catch (error) {
       console.error("[lib/analyze] reddit failure", error);
     }
+
+    console.log("[lib/analyze] reddit included", { keyword: normalizedKeyword, included: redditIncluded });
 
     console.log("[lib/analyze] response source", { source: "ai", keyword: report.keyword });
     return report;
