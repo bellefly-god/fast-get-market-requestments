@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import type { DemandReport } from "@/types/demand-report";
-import { Zap, ArrowLeft, Search, TrendingUp, MessageSquare, Lightbulb, Target, BarChart3, DollarSign, Users, Rocket } from "lucide-react";
+import { Zap, ArrowLeft, Search, TrendingUp, MessageSquare, Lightbulb, Target, BarChart3, DollarSign, Users, Rocket, Copy } from "lucide-react";
 import ResultsLoading from "@/components/ResultsLoading";
 import { readRecentSearches, saveRecentSearch } from "@/lib/recentSearches";
+import { useToast } from "@/hooks/use-toast";
 
 const Results = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const query = searchParams.get("q") || "";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +81,56 @@ const Results = () => {
     return Number.isNaN(parsed.getTime()) ? null : parsed.toLocaleString();
   })();
 
+  const copyToClipboard = async (label: string, value: string) => {
+    if (!value.trim()) {
+      toast({
+        title: `No ${label.toLowerCase()} available`,
+        description: "There was nothing to copy from this report.",
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({
+        title: `${label} copied`,
+        description: "The content is now in your clipboard.",
+      });
+    } catch (error) {
+      console.error("[Results] copy failed", error);
+      toast({
+        title: `Failed to copy ${label.toLowerCase()}`,
+        description: "Clipboard access was unavailable in this browser.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const painPointsExport = report.painPoints.map((item, index) => `${index + 1}. ${item}`).join("\n");
+  const productIdeasExport = report.productIdeas
+    .map((idea, index) => `${index + 1}. ${idea.title}\nDescription: ${idea.description}\nTarget User: ${idea.targetUser}`)
+    .join("\n\n");
+  const fullReportExport = [
+    `Keyword: ${report.keyword}`,
+    `Opportunity Score: ${report.opportunityScore.toFixed(1)}/10`,
+    `Trend: ${report.trendLabel} (${report.trendScore.toFixed(1)}/10)`,
+    "",
+    "Pain Points:",
+    painPointsExport,
+    "",
+    "Product Ideas:",
+    productIdeasExport,
+    "",
+    "Quotes:",
+    report.quotes.map((quote, index) => `${index + 1}. "${quote.text}"${quote.author ? ` — ${quote.author}` : ""} (${quote.source})`).join("\n"),
+    "",
+    "Sources:",
+    report.sources.map((source) => `- ${source.name} [${source.type}]`).join("\n"),
+    generatedAtLabel ? `Generated At: ${generatedAtLabel}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   if (loading) {
     return <ResultsLoading query={query} />;
   }
@@ -141,8 +193,19 @@ const Results = () => {
       <main className="max-w-6xl mx-auto px-6 py-10">
         {/* Title */}
         <div className="mb-10 animate-fade-in-up">
-          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2 font-medium">Analysis results for</p>
-          <h1 className="text-4xl md:text-5xl font-extrabold text-foreground tracking-tight">{report.keyword}</h1>
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2 font-medium">Analysis results for</p>
+              <h1 className="text-4xl md:text-5xl font-extrabold text-foreground tracking-tight">{report.keyword}</h1>
+            </div>
+            <button
+              onClick={() => void copyToClipboard("Full report", fullReportExport)}
+              className="inline-flex items-center gap-2 self-start text-xs text-foreground/80 hover:text-foreground glass rounded-full px-4 py-2 transition-colors"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              Copy Full Report
+            </button>
+          </div>
           {recentSearches.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-4">
               {recentSearches.map((item) => (
@@ -210,14 +273,23 @@ const Results = () => {
           <div className="lg:col-span-2 space-y-8">
             {/* Pain Points */}
             <section className="glass rounded-2xl p-7 animate-fade-in-up hover:shadow-glow/50 transition-all duration-300" style={{ animationDelay: "0.2s" }}>
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center">
-                  <Lightbulb className="w-4.5 h-4.5 text-accent-foreground" />
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center">
+                    <Lightbulb className="w-4.5 h-4.5 text-accent-foreground" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-foreground text-lg">Pain Points</h2>
+                    <p className="text-xs text-muted-foreground">Top patterns from user feedback</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="font-bold text-foreground text-lg">Pain Points</h2>
-                  <p className="text-xs text-muted-foreground">Top patterns from user feedback</p>
-                </div>
+                <button
+                  onClick={() => void copyToClipboard("Pain points", painPointsExport)}
+                  className="inline-flex items-center gap-2 text-xs text-foreground/80 hover:text-foreground glass rounded-full px-3 py-1.5 transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy
+                </button>
               </div>
               <ul className="space-y-4">
                 {report.painPoints.map((item, i) => (
@@ -234,14 +306,23 @@ const Results = () => {
 
           {/* Right column: Product Ideas */}
           <div className="space-y-5 animate-fade-in-up" style={{ animationDelay: "0.4s" }}>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center">
-                <Rocket className="w-4.5 h-4.5 text-accent-foreground" />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
+              <div className="flex items-center gap-3 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center">
+                  <Rocket className="w-4.5 h-4.5 text-accent-foreground" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-foreground text-lg">Startup Ideas</h2>
+                  <p className="text-xs text-muted-foreground">Validated product opportunities</p>
+                </div>
               </div>
-              <div>
-                <h2 className="font-bold text-foreground text-lg">Startup Ideas</h2>
-                <p className="text-xs text-muted-foreground">Validated product opportunities</p>
-              </div>
+              <button
+                onClick={() => void copyToClipboard("Product ideas", productIdeasExport)}
+                className="inline-flex items-center gap-2 text-xs text-foreground/80 hover:text-foreground glass rounded-full px-3 py-1.5 transition-colors"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                Copy
+              </button>
             </div>
             {report.productIdeas.map((idea, idx) => (
               <div key={idea.title} className="glass rounded-2xl p-6 hover:shadow-glow transition-all duration-300 group hover:-translate-y-0.5 relative overflow-hidden">
