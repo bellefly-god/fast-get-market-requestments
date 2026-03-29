@@ -1,5 +1,3 @@
-import { analyzeKeyword } from "../lib/analyze";
-
 type AnalyzeRequestBody = {
   keyword?: string;
 };
@@ -48,7 +46,7 @@ function sendError(res: HandlerResponse, status: number, code: string, message: 
   return res.status(status).json(payload);
 }
 
-export default function handler(req: HandlerRequest, res: HandlerResponse) {
+export default async function handler(req: HandlerRequest, res: HandlerResponse) {
   const method = req.method ?? "UNKNOWN";
   console.log("[api/analyze] handler start", { method });
 
@@ -74,6 +72,7 @@ export default function handler(req: HandlerRequest, res: HandlerResponse) {
       return sendError(res, 400, "INVALID_KEYWORD", "`keyword` must be a string.");
     }
 
+    const { analyzeKeyword } = await import("../lib/analyze");
     const report = analyzeKeyword(body.keyword ?? "");
 
     console.log("[api/analyze] success", { keyword: report.keyword });
