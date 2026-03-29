@@ -7,7 +7,6 @@ export const mockDemandReport: DemandReport = {
     {
       name: "mock-ai",
       type: "ai",
-      status: "ok",
     },
   ],
   trendScore: 8,

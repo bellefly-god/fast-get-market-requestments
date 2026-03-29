@@ -31,7 +31,6 @@ const SAFE_REPORT: DemandReport = {
     {
       name: "safe-ai-fallback",
       type: "ai",
-      status: "fallback",
     },
   ],
   trendScore: 8,
@@ -107,10 +106,10 @@ function asSources(value: unknown, fallback: ReportSource[]): ReportSource[] {
     .map((item) => {
       if (!item || typeof item !== "object") return null;
       const source = item as Partial<ReportSource>;
+      const type = source.type === "ai" || source.type === "reddit" || source.type === "trends" || source.type === "x" ? source.type : "ai";
       return {
         name: asString(source.name, "safe-ai-fallback"),
-        type: "ai" as const,
-        status: source.status === "ok" || source.status === "fallback" ? source.status : "fallback",
+        type,
       };
     })
     .filter((item): item is ReportSource => item !== null);
@@ -173,7 +172,6 @@ function generateAIReport(keyword: string): Partial<DemandReport> {
       {
         name: "mock-ai",
         type: "ai",
-        status: "ok",
       },
     ],
     trendScore: 8,

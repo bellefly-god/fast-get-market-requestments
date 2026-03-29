@@ -2,8 +2,7 @@ export type TrendLabel = "Rising" | "Stable" | "Declining";
 
 export type ReportSource = {
   name: string;
-  type: "ai";
-  status: "ok" | "fallback";
+  type: "ai" | "reddit" | "trends" | "x";
 };
 
 export type QuoteItem = {
