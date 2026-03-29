@@ -25,3 +25,4 @@ dist-ssr
 
 # Local architecture/design notes (do not commit)
 .doc/
+.vercel
