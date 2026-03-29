@@ -1,5 +1,5 @@
 import type { DemandReport, OpportunityMetrics, ProductIdea, QuoteItem, ReportSource, TrendLabel } from "../src/types/demand-report";
-import { getRedditSignals } from "../providers/reddit";
+import { getRedditSignals } from "../providers/reddit.js";
 
 const DEFAULT_KEYWORD = "youtube automation";
 
