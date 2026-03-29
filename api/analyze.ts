@@ -67,7 +67,8 @@ function parseBody(rawBody: unknown): AnalyzeRequestBody | null {
   if (typeof rawBody === "string") {
     try {
       return JSON.parse(rawBody) as AnalyzeRequestBody;
-    } catch {
+    } catch (error) {
+      console.error("[api/analyze] parseBody failed", error);
       return null;
     }
   }
@@ -89,19 +90,24 @@ function sendError(res: HandlerResponse, status: number, code: string, message: 
 
 export default function handler(req: HandlerRequest, res: HandlerResponse) {
   const method = req.method ?? "UNKNOWN";
-  console.log("[api/analyze] incoming request", { method });
-
-  if (method !== "POST") {
-    console.warn("[api/analyze] method not allowed", { method });
-    return sendError(res, 405, "METHOD_NOT_ALLOWED", "Only POST is supported.");
-  }
+  console.log("[api/analyze] handler start", { method });
 
   try {
+    if (method !== "POST") {
+      console.warn("[api/analyze] method not allowed", { method });
+      return sendError(res, 405, "METHOD_NOT_ALLOWED", "Only POST is supported.");
+    }
+
     const body = parseBody(req.body);
     if (body === null) {
       console.warn("[api/analyze] invalid JSON body");
       return sendError(res, 400, "INVALID_JSON", "Request body must be valid JSON.");
     }
+
+    console.log("[api/analyze] request parsed", {
+      method,
+      hasKeyword: typeof body.keyword === "string" && body.keyword.trim().length > 0,
+    });
 
     if (body.keyword !== undefined && typeof body.keyword !== "string") {
       console.warn("[api/analyze] invalid keyword type", { keywordType: typeof body.keyword });
@@ -119,6 +125,7 @@ export default function handler(req: HandlerRequest, res: HandlerResponse) {
   } catch (error) {
     console.error("[api/analyze] unexpected error", error);
     return sendError(res, 500, "INTERNAL_ERROR", "Unexpected server error.");
+  } finally {
+    console.log("[api/analyze] handler finish", { method });
   }
-
 }
