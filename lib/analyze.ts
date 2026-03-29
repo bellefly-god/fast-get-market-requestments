@@ -48,6 +48,10 @@ function asNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+function clampScore(value: number): number {
+  return Math.min(10, Math.max(1, value));
+}
+
 function asTrendLabel(value: unknown, fallback: TrendLabel): TrendLabel {
   return value === "Rising" || value === "Stable" || value === "Declining" ? value : fallback;
 }
@@ -110,9 +114,9 @@ function asMetrics(value: unknown, fallback: OpportunityMetrics): OpportunityMet
   if (!value || typeof value !== "object") return fallback;
   const metrics = value as Partial<OpportunityMetrics>;
   return {
-    demand: asNumber(metrics.demand, fallback.demand),
-    competition: asNumber(metrics.competition, fallback.competition),
-    monetization: asNumber(metrics.monetization, fallback.monetization),
+    demand: clampScore(asNumber(metrics.demand, fallback.demand)),
+    competition: clampScore(asNumber(metrics.competition, fallback.competition)),
+    monetization: clampScore(asNumber(metrics.monetization, fallback.monetization)),
   };
 }
 
@@ -161,12 +165,12 @@ function buildStableReport(input: Partial<DemandReport>): DemandReport {
     keyword: asString(input.keyword, SAFE_REPORT.keyword),
     generatedAt: asString(input.generatedAt, new Date().toISOString()),
     sources: asSources(input.sources, SAFE_REPORT.sources),
-    trendScore: asNumber(input.trendScore, SAFE_REPORT.trendScore),
+    trendScore: clampScore(asNumber(input.trendScore, SAFE_REPORT.trendScore)),
     trendLabel: asTrendLabel(input.trendLabel, SAFE_REPORT.trendLabel),
     quotes: asQuotes(input.quotes, SAFE_REPORT.quotes),
     painPoints: asPainPoints(input.painPoints, SAFE_REPORT.painPoints),
     productIdeas: asProductIdeas(input.productIdeas, SAFE_REPORT.productIdeas),
-    opportunityScore: asNumber(input.opportunityScore, SAFE_REPORT.opportunityScore),
+    opportunityScore: clampScore(asNumber(input.opportunityScore, SAFE_REPORT.opportunityScore)),
     metrics: asMetrics(input.metrics, SAFE_REPORT.metrics),
   };
 }
@@ -175,13 +179,17 @@ export function analyzeKeyword(keyword: string): DemandReport {
   const normalizedKeyword = asString(keyword, DEFAULT_KEYWORD);
 
   try {
-    return buildStableReport(generateAIReport(normalizedKeyword));
+    const report = buildStableReport(generateAIReport(normalizedKeyword));
+    console.log("[lib/analyze] response source", { source: "ai", keyword: report.keyword });
+    return report;
   } catch (error) {
     console.error("[lib/analyze] analyzeKeyword failed, using safe fallback", error);
-    return buildStableReport({
+    const report = buildStableReport({
       ...SAFE_REPORT,
       keyword: normalizedKeyword,
       generatedAt: new Date().toISOString(),
     });
+    console.log("[lib/analyze] response source", { source: "fallback", keyword: report.keyword });
+    return report;
   }
 }
