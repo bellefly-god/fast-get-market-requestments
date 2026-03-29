@@ -1,5 +1,6 @@
 import type { DemandReport, OpportunityMetrics, ProductIdea, QuoteItem, ReportSource, TrendLabel } from "../src/types/demand-report";
 import { getRedditSignals } from "../providers/reddit.js";
+import { getTrendSignals } from "../providers/trends.js";
 
 const DEFAULT_KEYWORD = "youtube automation";
 
@@ -205,6 +206,22 @@ export function analyzeKeyword(keyword: string): DemandReport {
     const aiReport = generateAIReport(normalizedKeyword);
     let report = buildStableReport(aiReport);
     let redditIncluded = false;
+
+    try {
+      const trendSignals = getTrendSignals(normalizedKeyword);
+      report = buildStableReport({
+        ...report,
+        trendScore: trendSignals.trendScore,
+        trendLabel: trendSignals.trendLabel,
+      });
+      console.log("[lib/analyze] trends success", {
+        keyword: normalizedKeyword,
+        trendScore: trendSignals.trendScore,
+        trendLabel: trendSignals.trendLabel,
+      });
+    } catch (error) {
+      console.error("[lib/analyze] trends failure", error);
+    }
 
     try {
       const redditResult = getRedditSignals(normalizedKeyword);
