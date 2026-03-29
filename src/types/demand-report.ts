@@ -1,5 +1,11 @@
 export type TrendLabel = "Rising" | "Stable" | "Declining";
 
+export type ReportSource = {
+  name: string;
+  type: "ai";
+  status: "ok" | "fallback";
+};
+
 export type QuoteItem = {
   source: string;
   author?: string;
@@ -20,6 +26,8 @@ export type OpportunityMetrics = {
 
 export type DemandReport = {
   keyword: string;
+  generatedAt: string;
+  sources: ReportSource[];
   trendScore: number;
   trendLabel: TrendLabel;
   quotes: QuoteItem[];

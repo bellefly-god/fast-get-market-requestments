@@ -2,6 +2,14 @@ import type { DemandReport } from "../types/demand-report";
 
 export const mockDemandReport: DemandReport = {
   keyword: "youtube automation",
+  generatedAt: "2026-03-29T00:00:00.000Z",
+  sources: [
+    {
+      name: "mock-ai",
+      type: "ai",
+      status: "ok",
+    },
+  ],
   trendScore: 8,
   trendLabel: "Rising",
   quotes: [
