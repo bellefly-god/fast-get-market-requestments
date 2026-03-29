@@ -1,27 +1,4 @@
-import { analyzeKeyword } from "../lib/analyze.js";
 import type { DemandReport, OpportunityMetrics, ProductIdea, QuoteItem, ReportSource, TrendLabel } from "../src/types/demand-report";
-
-type AnalyzeRequestBody = {
-  keyword?: string;
-};
-
-type ApiError = {
-  error: {
-    code: string;
-    message: string;
-  };
-};
-
-type HandlerRequest = {
-  method?: string;
-  body?: unknown;
-};
-
-type HandlerResponse = {
-  status: (code: number) => {
-    json: (payload: unknown) => void;
-  };
-};
 
 const DEFAULT_KEYWORD = "youtube automation";
 
@@ -62,32 +39,6 @@ const SAFE_REPORT: DemandReport = {
     monetization: 8,
   },
 };
-
-function parseBody(rawBody: unknown): AnalyzeRequestBody | null {
-  if (!rawBody) return {};
-  if (typeof rawBody === "string") {
-    try {
-      return JSON.parse(rawBody) as AnalyzeRequestBody;
-    } catch (error) {
-      console.error("[api/analyze] parseBody failed", error);
-      return null;
-    }
-  }
-  if (typeof rawBody === "object") {
-    return rawBody as AnalyzeRequestBody;
-  }
-  return null;
-}
-
-function sendError(res: HandlerResponse, status: number, code: string, message: string) {
-  const payload: ApiError = {
-    error: {
-      code,
-      message,
-    },
-  };
-  return res.status(status).json(payload);
-}
 
 function asString(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
@@ -220,48 +171,17 @@ function buildStableReport(input: Partial<DemandReport>): DemandReport {
   };
 }
 
-export default function handler(req: HandlerRequest, res: HandlerResponse) {
-  const method = req.method ?? "UNKNOWN";
-  console.log("[api/analyze] handler start", { method });
+export function analyzeKeyword(keyword: string): DemandReport {
+  const normalizedKeyword = asString(keyword, DEFAULT_KEYWORD);
 
   try {
-    if (method !== "POST") {
-      console.warn("[api/analyze] method not allowed", { method });
-      return sendError(res, 405, "METHOD_NOT_ALLOWED", "Only POST is supported.");
-    }
-
-    const body = parseBody(req.body);
-    if (body === null) {
-      console.error("[api/analyze] invalid JSON body");
-      return sendError(res, 400, "INVALID_JSON", "Request body must be valid JSON.");
-    }
-
-    console.log("[api/analyze] request parsed", {
-      method,
-      hasKeyword: typeof body.keyword === "string" && body.keyword.trim().length > 0,
-    });
-
-    if (body.keyword !== undefined && typeof body.keyword !== "string") {
-      console.error("[api/analyze] invalid keyword type", { keywordType: typeof body.keyword });
-      return sendError(res, 400, "INVALID_KEYWORD", "`keyword` must be a string.");
-    }
-
-    const keyword = asString(body.keyword, DEFAULT_KEYWORD);
-
-    let report: DemandReport;
-    try {
-      report = analyzeKeyword(keyword);
-    } catch (error) {
-      console.error("[api/analyze] analyzeKeyword failed", error);
-      throw error;
-    }
-
-    console.log("[api/analyze] success", { keyword });
-    return res.status(200).json(report);
+    return buildStableReport(generateAIReport(normalizedKeyword));
   } catch (error) {
-    console.error("[api/analyze] unexpected error", error);
-    return sendError(res, 500, "INTERNAL_ERROR", "Unexpected server error.");
-  } finally {
-    console.log("[api/analyze] handler finish", { method });
+    console.error("[lib/analyze] analyzeKeyword failed, using safe fallback", error);
+    return buildStableReport({
+      ...SAFE_REPORT,
+      keyword: normalizedKeyword,
+      generatedAt: new Date().toISOString(),
+    });
   }
 }
