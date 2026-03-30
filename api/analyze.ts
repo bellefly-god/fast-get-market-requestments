@@ -211,7 +211,7 @@ function buildStableReport(input: Partial<DemandReport>): DemandReport {
   };
 }
 
-export default function handler(req: HandlerRequest, res: HandlerResponse) {
+export default async function handler(req: HandlerRequest, res: HandlerResponse) {
   const method = req.method ?? "UNKNOWN";
   console.log("[api/analyze] handler start", { method });
 
@@ -241,7 +241,7 @@ export default function handler(req: HandlerRequest, res: HandlerResponse) {
 
     let report: DemandReport;
     try {
-      report = analyzeKeyword(keyword);
+      report = await analyzeKeyword(keyword);
     } catch (error) {
       console.error("[api/analyze] analyzeKeyword failed", error);
       throw error;

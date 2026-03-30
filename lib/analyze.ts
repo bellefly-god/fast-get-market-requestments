@@ -3,9 +3,90 @@ import { getRedditSignals } from "../providers/reddit.js";
 import { getTrendSignals } from "../providers/trends.js";
 
 const DEFAULT_KEYWORD = "youtube automation";
+const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const AI_SOURCE: ReportSource = { name: "AI Synthesis", type: "ai" };
 const REDDIT_SOURCE: ReportSource = { name: "Reddit Signals", type: "reddit" };
 const TREND_SOURCE: ReportSource = { name: "Trend Signals", type: "trends" };
+const DEMAND_REPORT_SCHEMA = {
+  name: "demand_report",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "keyword",
+      "generatedAt",
+      "sources",
+      "trendScore",
+      "trendLabel",
+      "quotes",
+      "painPoints",
+      "productIdeas",
+      "opportunityScore",
+      "metrics",
+    ],
+    properties: {
+      keyword: { type: "string" },
+      generatedAt: { type: "string" },
+      sources: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["name", "type"],
+          properties: {
+            name: { type: "string" },
+            type: { type: "string", enum: ["ai", "reddit", "trends", "x"] },
+          },
+        },
+      },
+      trendScore: { type: "number" },
+      trendLabel: { type: "string", enum: ["Rising", "Stable", "Declining"] },
+      quotes: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["source", "text"],
+          properties: {
+            source: { type: "string" },
+            author: { type: "string" },
+            text: { type: "string" },
+          },
+        },
+      },
+      painPoints: {
+        type: "array",
+        items: { type: "string" },
+      },
+      productIdeas: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["title", "description", "targetUser"],
+          properties: {
+            title: { type: "string" },
+            description: { type: "string" },
+            targetUser: { type: "string" },
+          },
+        },
+      },
+      opportunityScore: { type: "number" },
+      metrics: {
+        type: "object",
+        additionalProperties: false,
+        required: ["demand", "competition", "monetization"],
+        properties: {
+          demand: { type: "number" },
+          competition: { type: "number" },
+          monetization: { type: "number" },
+        },
+      },
+    },
+  },
+} as const;
 
 const SAFE_REPORT: DemandReport = {
   keyword: DEFAULT_KEYWORD,
@@ -157,39 +238,96 @@ function asMetrics(value: unknown, fallback: OpportunityMetrics): OpportunityMet
   };
 }
 
-function generateAIReport(keyword: string): Partial<DemandReport> {
-  return {
-    keyword,
-    generatedAt: new Date().toISOString(),
-    sources: [AI_SOURCE],
-    trendScore: 8,
-    trendLabel: "Rising",
-    quotes: [
-      {
-        source: "AI synthesis",
-        author: "system",
-        text: `Signals around "${keyword}" show strong demand for faster validation and clearer market research workflows.`,
-      },
-    ],
-    painPoints: [
-      `Teams researching "${keyword}" struggle to validate real demand quickly.`,
-      `Research for "${keyword}" is spread across too many places.`,
-      `Users need clearer decision support around "${keyword}".`,
-    ],
-    productIdeas: [
-      {
-        title: `${keyword} Signal Monitor`,
-        description: `Collect and summarize demand signals for "${keyword}" in one place.`,
-        targetUser: "Founders and product teams",
-      },
-    ],
-    opportunityScore: 8.4,
-    metrics: {
-      demand: 8.8,
-      competition: 6.1,
-      monetization: 8.0,
-    },
+function getStructuredOutputText(payload: unknown): string {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Structured response payload was not an object.");
+  }
+
+  const response = payload as {
+    output_text?: unknown;
+    output?: Array<{
+      content?: Array<
+        | { type?: string; text?: string }
+        | { type?: string; refusal?: string }
+      >;
+    }>;
   };
+
+  if (typeof response.output_text === "string" && response.output_text.trim()) {
+    return response.output_text;
+  }
+
+  const refusal = response.output
+    ?.flatMap((item) => item.content ?? [])
+    .find((content) => content.type === "refusal" && typeof content.refusal === "string");
+
+  if (refusal && typeof refusal.refusal === "string") {
+    throw new Error(`Structured AI refused request: ${refusal.refusal}`);
+  }
+
+  const outputText = response.output
+    ?.flatMap((item) => item.content ?? [])
+    .find((content) => content.type === "output_text" && typeof content.text === "string");
+
+  if (outputText && typeof outputText.text === "string" && outputText.text.trim()) {
+    return outputText.text;
+  }
+
+  throw new Error("Structured response did not include output_text.");
+}
+
+async function generateAIReport(keyword: string): Promise<Partial<DemandReport>> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is not configured.");
+  }
+
+  const generatedAt = new Date().toISOString();
+  const response = await fetch(OPENAI_RESPONSES_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      input: [
+        {
+          role: "system",
+          content: [
+            {
+              type: "input_text",
+              text:
+                "Return a DemandReport as JSON only. Follow the schema exactly. Keep scores within 1 to 10. Use sources [{\"name\":\"AI Synthesis\",\"type\":\"ai\"}] for the base AI report. Produce 2 to 4 quotes, 3 to 5 pain points, and 2 to 3 product ideas.",
+            },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `Create a demand report for the keyword "${keyword}". Use "${generatedAt}" exactly for generatedAt.`,
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          ...DEMAND_REPORT_SCHEMA,
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI structured request failed with status ${response.status}.`);
+  }
+
+  const payload = (await response.json()) as unknown;
+  const outputText = getStructuredOutputText(payload);
+  return JSON.parse(outputText) as Partial<DemandReport>;
 }
 
 function buildStableReport(input: Partial<DemandReport>): DemandReport {
@@ -207,14 +345,16 @@ function buildStableReport(input: Partial<DemandReport>): DemandReport {
   };
 }
 
-export function analyzeKeyword(keyword: string): DemandReport {
+export async function analyzeKeyword(keyword: string): Promise<DemandReport> {
   const normalizedKeyword = asString(keyword, DEFAULT_KEYWORD);
 
   try {
-    const aiReport = generateAIReport(normalizedKeyword);
+    const aiReport = await generateAIReport(normalizedKeyword);
     let report = buildStableReport(aiReport);
     let redditIncluded = false;
     let trendIncluded = false;
+
+    console.log("[lib/analyze] structured ai success", { keyword: normalizedKeyword, model: OPENAI_MODEL });
 
     try {
       const trendSignals = getTrendSignals(normalizedKeyword);
@@ -253,10 +393,10 @@ export function analyzeKeyword(keyword: string): DemandReport {
     console.log("[lib/analyze] trends included", { keyword: normalizedKeyword, included: trendIncluded });
     console.log("[lib/analyze] reddit included", { keyword: normalizedKeyword, included: redditIncluded });
 
-    console.log("[lib/analyze] response source", { source: "ai", keyword: report.keyword });
+    console.log("[lib/analyze] response source", { source: "structured_ai", keyword: report.keyword });
     return report;
   } catch (error) {
-    console.error("[lib/analyze] analyzeKeyword failed, using safe fallback", error);
+    console.error("[lib/analyze] structured ai failed, using safe fallback", error);
     const report = buildStableReport({
       ...SAFE_REPORT,
       keyword: normalizedKeyword,
