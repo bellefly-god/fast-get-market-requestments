@@ -229,6 +229,42 @@ const Results = () => {
     return `${winner.keyword} looks more promising for an indie developer right now because it pairs a stronger opportunity score with a ${winner.trendLabel.toLowerCase()} trend signal. Compared with ${loser.keyword}, it currently shows a clearer path to a focused product and a smaller execution tradeoff, with an overall edge of about ${demandGap} points on opportunity score.`;
   };
 
+  const getMetricExplanation = (metric: "demand" | "competition" | "monetization"): string => {
+    if (metric === "demand") {
+      if (report.metrics.demand >= 8) {
+        return `Demand scores high because the report surfaces repeated pain points and a ${report.trendLabel.toLowerCase()} trend signal around ${report.keyword}.`;
+      }
+
+      if (report.metrics.demand >= 6) {
+        return `Demand is moderate because ${report.keyword} shows clear user needs, but the overall trend signal is not overwhelmingly strong yet.`;
+      }
+
+      return `Demand is lower because the current synthesis shows fewer strong recurring signals around ${report.keyword}.`;
+    }
+
+    if (metric === "competition") {
+      if (report.metrics.competition >= 8) {
+        return `Competition scores high here because the synthesis suggests a crowded market with many existing angles on ${report.keyword}.`;
+      }
+
+      if (report.metrics.competition >= 6) {
+        return `Competition looks moderate because there is room to differentiate, but the space is active enough that positioning still matters.`;
+      }
+
+      return `Competition is relatively low because the current pain points suggest underserved needs that still leave space for a focused indie product.`;
+    }
+
+    if (report.metrics.monetization >= 8) {
+      return `Monetization scores high because the product ideas point to practical workflows that teams or creators are likely to pay to improve.`;
+    }
+
+    if (report.metrics.monetization >= 6) {
+      return `Monetization is decent because ${report.keyword} appears commercially useful, though the clearest paid wedge is still somewhat narrow.`;
+    }
+
+    return `Monetization is weaker because the current synthesis shows less direct evidence of urgent, budget-backed buying intent.`;
+  };
+
   return (
     <div className="min-h-screen gradient-bg">
       {/* Header */}
@@ -386,9 +422,9 @@ const Results = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
-                <SubMetric icon={<BarChart3 className="w-4 h-4" />} label="Demand" value={report.metrics.demand.toFixed(1)} />
-                <SubMetric icon={<Users className="w-4 h-4" />} label="Competition" value={report.metrics.competition.toFixed(1)} />
-                <SubMetric icon={<DollarSign className="w-4 h-4" />} label="Monetization" value={report.metrics.monetization.toFixed(1)} />
+                <SubMetric icon={<BarChart3 className="w-4 h-4" />} label="Demand" value={report.metrics.demand.toFixed(1)} description={getMetricExplanation("demand")} />
+                <SubMetric icon={<Users className="w-4 h-4" />} label="Competition" value={report.metrics.competition.toFixed(1)} description={getMetricExplanation("competition")} />
+                <SubMetric icon={<DollarSign className="w-4 h-4" />} label="Monetization" value={report.metrics.monetization.toFixed(1)} description={getMetricExplanation("monetization")} />
               </div>
             </div>
           </div>
@@ -595,15 +631,18 @@ function CompareColumn({
   );
 }
 
-function SubMetric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function SubMetric({ icon, label, value, description }: { icon: React.ReactNode; label: string; value: string; description: string }) {
   return (
     <div className="glass rounded-2xl p-4 text-center border border-border/40">
       <div className="flex items-center justify-center gap-1.5 mb-2">
         <span className="text-muted-foreground">{icon}</span>
         <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{label}</span>
       </div>
-      <span className="text-2xl md:text-3xl font-bold text-foreground">{value}</span>
-      <span className="text-xs text-muted-foreground">/10</span>
+      <div>
+        <span className="text-2xl md:text-3xl font-bold text-foreground">{value}</span>
+        <span className="text-xs text-muted-foreground">/10</span>
+      </div>
+      <p className="text-xs text-muted-foreground mt-3 leading-relaxed">{description}</p>
     </div>
   );
 }
