@@ -13,6 +13,8 @@ const features = [
 
 const Home = () => {
   const [keyword, setKeyword] = useState("");
+  const [compareKeyword, setCompareKeyword] = useState("");
+  const [compareMode, setCompareMode] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [savedReports, setSavedReports] = useState<DemandReport[]>([]);
   const navigate = useNavigate();
@@ -27,6 +29,11 @@ const Home = () => {
     if (keyword.trim()) {
       const nextKeyword = keyword.trim();
       setRecentSearches(saveRecentSearch(nextKeyword));
+      if (compareMode && compareKeyword.trim()) {
+        navigate(`/results?q=${encodeURIComponent(nextKeyword)}&q2=${encodeURIComponent(compareKeyword.trim())}`);
+        return;
+      }
+
       navigate(`/results?q=${encodeURIComponent(nextKeyword)}`);
     }
   };
@@ -68,23 +75,58 @@ const Home = () => {
           <form onSubmit={handleSearch} className="animate-fade-in-up" style={{ animationDelay: "0.3s" }}>
             <div className="relative max-w-2xl mx-auto">
               <div className="glass rounded-2xl p-2 shadow-glow">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 flex items-center gap-3 px-4">
-                    <Search className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                    <input
-                      type="text"
-                      value={keyword}
-                      onChange={(e) => setKeyword(e.target.value)}
-                      placeholder="Search problems like: youtube automation, job search, ai tools"
-                      className="w-full bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-base py-3"
-                    />
-                  </div>
+                <div className="flex items-center justify-between px-3 pt-2 pb-1">
                   <button
-                    type="submit"
-                    className="gradient-primary text-primary-foreground font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity flex-shrink-0 text-sm"
+                    type="button"
+                    onClick={() => setCompareMode((current) => !current)}
+                    className="text-xs text-foreground/80 hover:text-foreground glass rounded-full px-3 py-1.5 transition-colors"
                   >
-                    Discover Opportunities
+                    {compareMode ? "Single Keyword Mode" : "Compare Two Keywords"}
                   </button>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 flex items-center gap-3 px-4">
+                      <Search className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                      <input
+                        type="text"
+                        value={keyword}
+                        onChange={(e) => setKeyword(e.target.value)}
+                        placeholder={compareMode ? "First keyword: youtube automation" : "Search problems like: youtube automation, job search, ai tools"}
+                        className="w-full bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-base py-3"
+                      />
+                    </div>
+                    {!compareMode && (
+                      <button
+                        type="submit"
+                        className="gradient-primary text-primary-foreground font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity flex-shrink-0 text-sm"
+                      >
+                        Discover Opportunities
+                      </button>
+                    )}
+                  </div>
+
+                  {compareMode && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 flex items-center gap-3 px-4">
+                        <Search className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                        <input
+                          type="text"
+                          value={compareKeyword}
+                          onChange={(e) => setCompareKeyword(e.target.value)}
+                          placeholder="Second keyword: ai writing tools"
+                          className="w-full bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-base py-3"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="gradient-primary text-primary-foreground font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity flex-shrink-0 text-sm"
+                      >
+                        Compare Keywords
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

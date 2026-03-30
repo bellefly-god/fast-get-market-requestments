@@ -12,11 +12,15 @@ const Results = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const query = searchParams.get("q") || "";
+  const compareQuery = searchParams.get("q2") || "";
+  const isCompareMode = compareQuery.trim().length > 0;
   const savedMode = searchParams.get("saved") === "1";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<DemandReport | null>(null);
+  const [comparisonReport, setComparisonReport] = useState<DemandReport | null>(null);
   const [newQuery, setNewQuery] = useState(query);
+  const [newCompareQuery, setNewCompareQuery] = useState(compareQuery);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [savedReports, setSavedReports] = useState<DemandReport[]>([]);
 
@@ -29,9 +33,11 @@ const Results = () => {
     const controller = new AbortController();
 
     const fetchReport = async () => {
+      setComparisonReport(null);
+
       const savedReport = savedMode ? getSavedReport(query) : null;
 
-      if (savedReport) {
+      if (!isCompareMode && savedReport) {
         setReport(savedReport);
         setRecentSearches(saveRecentSearch(savedReport.keyword));
         setSavedReports(readSavedReports());
@@ -44,26 +50,41 @@ const Results = () => {
       setError(null);
 
       try {
-        const response = await fetch("/api/analyze", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ keyword: query }),
-          signal: controller.signal,
-        });
+        const analyzeKeyword = async (keyword: string) => {
+          const response = await fetch("/api/analyze", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ keyword }),
+            signal: controller.signal,
+          });
 
-        if (!response.ok) {
-          throw new Error(`Analyze request failed: ${response.status}`);
+          if (!response.ok) {
+            throw new Error(`Analyze request failed: ${response.status}`);
+          }
+
+          return (await response.json()) as DemandReport;
+        };
+
+        if (isCompareMode) {
+          const [primaryData, secondaryData] = await Promise.all([analyzeKeyword(query), analyzeKeyword(compareQuery)]);
+          setReport(primaryData);
+          setComparisonReport(secondaryData);
+          setRecentSearches(saveRecentSearch(primaryData.keyword));
+          setSavedReports(saveReport(primaryData));
+          saveReport(secondaryData);
+          setSavedReports(readSavedReports());
+        } else {
+          const data = await analyzeKeyword(query);
+          setReport(data);
+          setRecentSearches(saveRecentSearch(data.keyword));
+          setSavedReports(saveReport(data));
         }
-
-        const data = (await response.json()) as DemandReport;
-        setReport(data);
-        setRecentSearches(saveRecentSearch(data.keyword));
-        setSavedReports(saveReport(data));
       } catch (err) {
         if (controller.signal.aborted) return;
         setReport(null);
+        setComparisonReport(null);
         setError(err instanceof Error ? err.message : "Failed to load analysis results.");
       } finally {
         if (!controller.signal.aborted) {
@@ -75,13 +96,17 @@ const Results = () => {
     void fetchReport();
 
     return () => controller.abort();
-  }, [query, savedMode]);
+  }, [query, compareQuery, isCompareMode, savedMode]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (newQuery.trim()) {
       const nextKeyword = newQuery.trim();
       setRecentSearches(saveRecentSearch(nextKeyword));
+      if (newCompareQuery.trim()) {
+        navigate(`/results?q=${encodeURIComponent(nextKeyword)}&q2=${encodeURIComponent(newCompareQuery.trim())}`);
+        return;
+      }
       navigate(`/results?q=${encodeURIComponent(nextKeyword)}`);
     }
   };
@@ -187,6 +212,23 @@ const Results = () => {
     }
   };
 
+  const buildComparisonSummary = (primary: DemandReport, secondary: DemandReport): string => {
+    const primaryStrength =
+      primary.opportunityScore * 0.5 +
+      primary.trendScore * 0.3 +
+      primary.metrics.competition * 0.2;
+    const secondaryStrength =
+      secondary.opportunityScore * 0.5 +
+      secondary.trendScore * 0.3 +
+      secondary.metrics.competition * 0.2;
+
+    const winner = primaryStrength >= secondaryStrength ? primary : secondary;
+    const loser = winner.keyword === primary.keyword ? secondary : primary;
+    const demandGap = Math.abs(primary.opportunityScore - secondary.opportunityScore).toFixed(1);
+
+    return `${winner.keyword} looks more promising for an indie developer right now because it pairs a stronger opportunity score with a ${winner.trendLabel.toLowerCase()} trend signal. Compared with ${loser.keyword}, it currently shows a clearer path to a focused product and a smaller execution tradeoff, with an overall edge of about ${demandGap} points on opportunity score.`;
+  };
+
   return (
     <div className="min-h-screen gradient-bg">
       {/* Header */}
@@ -202,20 +244,52 @@ const Results = () => {
             <span className="font-bold text-foreground">Demand Radar</span>
           </div>
           <form onSubmit={handleSearch} className="flex-1 max-w-md ml-4">
-            <div className="flex items-center gap-2 glass rounded-xl px-3 py-1.5 hover:border-primary/30 transition-colors duration-200">
-              <Search className="w-4 h-4 text-muted-foreground" />
-              <input
-                value={newQuery}
-                onChange={(e) => setNewQuery(e.target.value)}
-                className="bg-transparent border-none outline-none text-foreground text-sm flex-1 placeholder:text-muted-foreground"
-                placeholder="Search another topic..."
-              />
+            <div className={`glass rounded-xl px-3 py-1.5 hover:border-primary/30 transition-colors duration-200 ${isCompareMode ? "grid md:grid-cols-2 gap-2" : "flex items-center gap-2"}`}>
+              <div className="flex items-center gap-2">
+                <Search className="w-4 h-4 text-muted-foreground" />
+                <input
+                  value={newQuery}
+                  onChange={(e) => setNewQuery(e.target.value)}
+                  className="bg-transparent border-none outline-none text-foreground text-sm flex-1 placeholder:text-muted-foreground"
+                  placeholder={isCompareMode ? "First keyword..." : "Search another topic..."}
+                />
+              </div>
+              {isCompareMode && (
+                <div className="flex items-center gap-2">
+                  <Search className="w-4 h-4 text-muted-foreground" />
+                  <input
+                    value={newCompareQuery}
+                    onChange={(e) => setNewCompareQuery(e.target.value)}
+                    className="bg-transparent border-none outline-none text-foreground text-sm flex-1 placeholder:text-muted-foreground"
+                    placeholder="Second keyword..."
+                  />
+                </div>
+              )}
             </div>
           </form>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-10">
+        {isCompareMode && report && comparisonReport ? (
+          <>
+            <div className="mb-10 animate-fade-in-up">
+              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2 font-medium">Comparison results</p>
+              <h1 className="text-4xl md:text-5xl font-extrabold text-foreground tracking-tight">
+                {report.keyword} vs {comparisonReport.keyword}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-3 max-w-3xl">
+                {buildComparisonSummary(report, comparisonReport)}
+              </p>
+            </div>
+
+            <section className="grid lg:grid-cols-2 gap-8">
+              <CompareColumn report={report} getTrendColor={getTrendColor} />
+              <CompareColumn report={comparisonReport} getTrendColor={getTrendColor} />
+            </section>
+          </>
+        ) : (
+          <>
         {/* Title */}
         <div className="mb-10 animate-fade-in-up">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
@@ -453,10 +527,73 @@ const Results = () => {
             )}
           </div>
         </section>
+          </>
+        )}
       </main>
     </div>
   );
 };
+
+function CompareColumn({
+  report,
+  getTrendColor,
+}: {
+  report: DemandReport;
+  getTrendColor: (label: string) => string;
+}) {
+  return (
+    <div className="space-y-6 animate-fade-in-up">
+      <section className="glass rounded-3xl p-7 relative overflow-hidden">
+        <div className="absolute -top-20 -right-20 w-48 h-48 bg-primary/10 rounded-full blur-3xl" />
+        <div className="relative">
+          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2 font-medium">{report.keyword}</p>
+          <div className="flex items-end gap-3 mb-5">
+            <span className="text-6xl md:text-7xl font-black gradient-text leading-none">{report.opportunityScore.toFixed(1)}</span>
+            <span className="text-xl text-muted-foreground pb-2">/10</span>
+          </div>
+          <div className="glass rounded-2xl px-4 py-4 border border-border/50">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp className={`w-4 h-4 ${getTrendColor(report.trendLabel)}`} />
+              <p className="text-xs uppercase tracking-widest text-muted-foreground font-medium">Trend Signal</p>
+            </div>
+            <p className="text-3xl font-black text-foreground">{report.trendScore.toFixed(1)}<span className="text-sm text-muted-foreground ml-1">/10</span></p>
+            <p className={`text-sm font-semibold mt-1 ${getTrendColor(report.trendLabel)}`}>{report.trendLabel}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="glass rounded-2xl p-6">
+        <h2 className="font-bold text-foreground text-lg mb-4">Top Pain Points</h2>
+        <ul className="space-y-3">
+          {report.painPoints.slice(0, 4).map((item, index) => (
+            <li key={`${report.keyword}-pain-${index}`} className="flex items-start gap-3 text-sm text-secondary-foreground">
+              <span className="w-6 h-6 rounded-lg gradient-primary text-primary-foreground text-xs flex items-center justify-center flex-shrink-0 mt-0.5 font-bold shadow-sm">
+                {index + 1}
+              </span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="glass rounded-2xl p-6">
+        <h2 className="font-bold text-foreground text-lg mb-4">Product Ideas</h2>
+        <div className="space-y-3">
+          {report.productIdeas.slice(0, 3).map((idea, index) => (
+            <div key={`${report.keyword}-idea-${index}`} className="glass rounded-2xl p-4">
+              <h3 className="font-semibold text-foreground text-sm">{idea.title}</h3>
+              <p className="text-sm text-muted-foreground mt-2">{idea.description}</p>
+              <div className="flex items-center gap-2 mt-3">
+                <Target className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">{idea.targetUser}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
 
 function SubMetric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
