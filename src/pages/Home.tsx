@@ -52,6 +52,12 @@ const Home = () => {
           </div>
           <span className="text-lg font-bold text-foreground">Demand Radar</span>
         </div>
+        <button
+          onClick={() => navigate("/leaderboard")}
+          className="text-xs text-foreground/80 hover:text-foreground glass rounded-full px-3 py-1.5 transition-colors"
+        >
+          Today&apos;s Leaderboard
+        </button>
       </nav>
 
       {/* Hero */}
