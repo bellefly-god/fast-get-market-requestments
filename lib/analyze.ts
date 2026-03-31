@@ -375,7 +375,7 @@ export async function analyzeKeyword(keyword: string): Promise<DemandReport> {
     }
 
     try {
-      const redditResult = getRedditSignals(normalizedKeyword);
+      const redditResult = await getRedditSignals(normalizedKeyword);
       const redditQuotes = asQuotes(redditResult, []);
       const redditPainPoints = derivePainPointsFromQuotes(redditQuotes, normalizedKeyword);
       report = buildStableReport({
