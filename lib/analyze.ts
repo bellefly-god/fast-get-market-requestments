@@ -1,13 +1,12 @@
 import type { DemandReport, OpportunityMetrics, ProductIdea, QuoteItem, ReportSource, TrendLabel } from "../src/types/demand-report";
 import { getRedditSignals } from "../providers/reddit.js";
-import { getTrendSignals } from "../providers/trends.js";
+import { processRawSignals } from "./signals.js";
 
 const DEFAULT_KEYWORD = "youtube automation";
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const AI_SOURCE: ReportSource = { name: "AI Synthesis", type: "ai" };
 const REDDIT_SOURCE: ReportSource = { name: "Reddit Signals", type: "reddit" };
-const TREND_SOURCE: ReportSource = { name: "Trend Signals", type: "trends" };
 const DEMAND_REPORT_SCHEMA = {
   name: "demand_report",
   strict: true,
@@ -276,13 +275,20 @@ function getStructuredOutputText(payload: unknown): string {
   throw new Error("Structured response did not include output_text.");
 }
 
-async function generateAIReport(keyword: string): Promise<Partial<DemandReport>> {
+async function generateAIReport(keyword: string, topQuotes: QuoteItem[]): Promise<Partial<DemandReport>> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is not configured.");
   }
 
   const generatedAt = new Date().toISOString();
+  const quoteContext =
+    topQuotes.length > 0
+      ? topQuotes
+          .map((quote, index) => `${index + 1}. ${quote.text}${quote.author ? ` (author: ${quote.author})` : ""} [source: ${quote.source}]`)
+          .join("\n")
+      : "No usable signals were available.";
+
   const response = await fetch(OPENAI_RESPONSES_URL, {
     method: "POST",
     headers: {
@@ -298,7 +304,7 @@ async function generateAIReport(keyword: string): Promise<Partial<DemandReport>>
             {
               type: "input_text",
               text:
-                "Return a DemandReport as JSON only. Follow the schema exactly. Keep scores within 1 to 10. Use sources [{\"name\":\"AI Synthesis\",\"type\":\"ai\"}] for the base AI report. Produce 2 to 4 quotes, 3 to 5 pain points, and 2 to 3 product ideas.",
+                "Return a DemandReport as JSON only. Follow the schema exactly. Keep scores within 1 to 10. This is a single-source MVP, so synthesize from the provided signal quotes only. Use sources [{\"name\":\"AI Synthesis\",\"type\":\"ai\"},{\"name\":\"Reddit Signals\",\"type\":\"reddit\"}] when signals are present, otherwise use [{\"name\":\"AI Synthesis\",\"type\":\"ai\"}]. Produce 2 to 4 quotes, 3 to 5 pain points, and 2 to 3 product ideas.",
             },
           ],
         },
@@ -307,7 +313,7 @@ async function generateAIReport(keyword: string): Promise<Partial<DemandReport>>
           content: [
             {
               type: "input_text",
-              text: `Create a demand report for the keyword "${keyword}". Use "${generatedAt}" exactly for generatedAt.`,
+              text: `Create a demand report for the keyword "${keyword}". Use "${generatedAt}" exactly for generatedAt.\n\nProcessed signal quotes:\n${quoteContext}`,
             },
           ],
         },
@@ -349,52 +355,47 @@ export async function analyzeKeyword(keyword: string): Promise<DemandReport> {
   const normalizedKeyword = asString(keyword, DEFAULT_KEYWORD);
 
   try {
-    const aiReport = await generateAIReport(normalizedKeyword);
-    let report = buildStableReport(aiReport);
-    let redditIncluded = false;
-    let trendIncluded = false;
-
-    console.log("[lib/analyze] structured ai success", { keyword: normalizedKeyword, model: OPENAI_MODEL });
-
     try {
-      const trendSignals = getTrendSignals(normalizedKeyword);
-      report = buildStableReport({
-        ...report,
-        trendScore: trendSignals.trendScore,
-        trendLabel: trendSignals.trendLabel,
-        sources: [...report.sources, TREND_SOURCE],
-      });
-      trendIncluded = true;
-      console.log("[lib/analyze] trends success", {
+      const rawSignals = await getRedditSignals(normalizedKeyword);
+      const processedSignals = processRawSignals(rawSignals);
+
+      console.log("[lib/analyze] raw signals fetched", {
         keyword: normalizedKeyword,
-        trendScore: trendSignals.trendScore,
-        trendLabel: trendSignals.trendLabel,
+        provider: "reddit",
+        rawCount: processedSignals.rawCount,
+        filteredCount: processedSignals.filteredCount,
+        dedupedCount: processedSignals.dedupedCount,
       });
-    } catch (error) {
-      console.error("[lib/analyze] trends failure", error);
-    }
 
-    try {
-      const redditResult = await getRedditSignals(normalizedKeyword);
-      const redditQuotes = asQuotes(redditResult, []);
-      const redditPainPoints = derivePainPointsFromQuotes(redditQuotes, normalizedKeyword);
+      const aiReport = await generateAIReport(normalizedKeyword, processedSignals.topQuotes);
+      let report = buildStableReport(aiReport);
+
+      console.log("[lib/analyze] structured ai success", {
+        keyword: normalizedKeyword,
+        model: OPENAI_MODEL,
+        signalQuotes: processedSignals.topQuotes.length,
+      });
+
+      const derivedPainPoints = derivePainPointsFromQuotes(processedSignals.topQuotes, normalizedKeyword);
       report = buildStableReport({
         ...report,
-        quotes: [...report.quotes, ...redditQuotes],
-        painPoints: [...report.painPoints, ...redditPainPoints],
-        sources: redditQuotes.length > 0 ? [...report.sources, REDDIT_SOURCE] : report.sources,
+        quotes: processedSignals.topQuotes.length > 0 ? processedSignals.topQuotes : report.quotes,
+        painPoints: [...report.painPoints, ...derivedPainPoints],
+        sources: processedSignals.topQuotes.length > 0 ? [AI_SOURCE, REDDIT_SOURCE] : [AI_SOURCE],
       });
-      redditIncluded = redditQuotes.length > 0;
-      console.log("[lib/analyze] reddit success", { keyword: normalizedKeyword, quotes: redditQuotes.length, painPoints: redditPainPoints.length });
-    } catch (error) {
-      console.error("[lib/analyze] reddit failure", error);
+
+      console.log("[lib/analyze] signal pipeline", {
+        keyword: normalizedKeyword,
+        provider: "reddit",
+        topQuotes: processedSignals.topQuotes.length,
+        derivedPainPoints: derivedPainPoints.length,
+      });
+
+      console.log("[lib/analyze] response source", { source: "structured_ai", keyword: report.keyword });
+      return report;
+    } catch (providerOrAiError) {
+      throw providerOrAiError;
     }
-
-    console.log("[lib/analyze] trends included", { keyword: normalizedKeyword, included: trendIncluded });
-    console.log("[lib/analyze] reddit included", { keyword: normalizedKeyword, included: redditIncluded });
-
-    console.log("[lib/analyze] response source", { source: "structured_ai", keyword: report.keyword });
-    return report;
   } catch (error) {
     console.error("[lib/analyze] structured ai failed, using safe fallback", error);
     const report = buildStableReport({

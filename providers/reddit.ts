@@ -1,12 +1,28 @@
+import type { RawSignal } from "../src/types/raw-signal";
+
 const REDDIT_API_URL = process.env.REDDIT_API_URL || "http://localhost:8000";
 
-interface RedditQuote {
+interface RedditSignalResponse {
   source: string;
   author?: string;
   text: string;
+  url?: string;
 }
 
-export async function getRedditSignals(keyword: string): Promise<RedditQuote[]> {
+function toRawSignals(items: RedditSignalResponse[]): RawSignal[] {
+  const collectedAt = new Date().toISOString();
+
+  return items.map((item) => ({
+    provider: "reddit",
+    source: item.source,
+    author: item.author,
+    text: item.text,
+    url: item.url,
+    collectedAt,
+  }));
+}
+
+export async function getRedditSignals(keyword: string): Promise<RawSignal[]> {
   const normalizedKeyword = keyword.trim() || "market validation";
 
   try {
@@ -22,12 +38,12 @@ export async function getRedditSignals(keyword: string): Promise<RedditQuote[]> 
       throw new Error(`HTTP ${res.status}`);
     }
 
-    const data = (await res.json()) as { quotes?: RedditQuote[] };
+    const data = (await res.json()) as { quotes?: RedditSignalResponse[] };
     const quotes = data?.quotes ?? [];
 
     if (quotes.length > 0) {
       console.log(`[reddit] fetched ${quotes.length} quotes for "${normalizedKeyword}"`);
-      return quotes;
+      return toRawSignals(quotes);
     }
 
     console.warn("[reddit] no quotes returned, using fallback");
@@ -36,7 +52,7 @@ export async function getRedditSignals(keyword: string): Promise<RedditQuote[]> 
   }
 
   // Fallback mock data
-  return [
+  return toRawSignals([
     {
       source: "Reddit",
       author: "u/founder_notes",
@@ -47,5 +63,5 @@ export async function getRedditSignals(keyword: string): Promise<RedditQuote[]> 
       author: "u/product_ops",
       text: `A recurring complaint around "${normalizedKeyword}" is that good signal collection is still too manual.`,
     },
-  ];
+  ]);
 }
