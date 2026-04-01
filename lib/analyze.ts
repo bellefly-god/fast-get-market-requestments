@@ -3,8 +3,11 @@ import { getRedditSignals } from "../providers/reddit.js";
 import { processRawSignals } from "./signals.js";
 
 const DEFAULT_KEYWORD = "youtube automation";
-const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+const OPENROUTER_SITE_URL = process.env.OPENROUTER_SITE_URL || "https://demand-radar.local";
+const OPENROUTER_APP_NAME = process.env.OPENROUTER_APP_NAME || "Demand Radar";
 const AI_SOURCE: ReportSource = { name: "AI Synthesis", type: "ai" };
 const REDDIT_SOURCE: ReportSource = { name: "Reddit Signals", type: "reddit" };
 const DEMAND_REPORT_SCHEMA = {
@@ -275,6 +278,46 @@ function getStructuredOutputText(payload: unknown): string {
   throw new Error("Structured response did not include output_text.");
 }
 
+function isOpenRouterKey(apiKey: string): boolean {
+  return apiKey.startsWith("sk-or-v1");
+}
+
+function getOpenRouterContent(payload: unknown): string {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("OpenRouter response payload was not an object.");
+  }
+
+  const response = payload as {
+    choices?: Array<{
+      message?: {
+        content?: string | Array<{ type?: string; text?: string }>;
+      };
+    }>;
+    error?: {
+      message?: string;
+      code?: string;
+    };
+  };
+
+  if (response.error?.message) {
+    throw new Error(`OpenRouter error: ${response.error.message}`);
+  }
+
+  const content = response.choices?.[0]?.message?.content;
+  if (typeof content === "string" && content.trim()) {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    const textPart = content.find((item) => typeof item?.text === "string" && item.text.trim());
+    if (textPart?.text) {
+      return textPart.text;
+    }
+  }
+
+  throw new Error("OpenRouter structured response did not include message content.");
+}
+
 async function generateAIReport(keyword: string, topQuotes: QuoteItem[]): Promise<Partial<DemandReport>> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -289,42 +332,70 @@ async function generateAIReport(keyword: string, topQuotes: QuoteItem[]): Promis
           .join("\n")
       : "No usable signals were available.";
 
-  const response = await fetch(OPENAI_RESPONSES_URL, {
+  const useOpenRouter = isOpenRouterKey(apiKey);
+  const response = await fetch(useOpenRouter ? `${OPENROUTER_BASE_URL}/chat/completions` : `${OPENAI_BASE_URL}/responses`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
+      ...(useOpenRouter
+        ? {
+            "HTTP-Referer": OPENROUTER_SITE_URL,
+            "X-Title": OPENROUTER_APP_NAME,
+          }
+        : {}),
     },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      input: [
-        {
-          role: "system",
-          content: [
-            {
-              type: "input_text",
-              text:
-                "Return a DemandReport as JSON only. Follow the schema exactly. Keep scores within 1 to 10. This is a single-source MVP, so synthesize from the provided signal quotes only. Use sources [{\"name\":\"AI Synthesis\",\"type\":\"ai\"},{\"name\":\"Reddit Signals\",\"type\":\"reddit\"}] when signals are present, otherwise use [{\"name\":\"AI Synthesis\",\"type\":\"ai\"}]. Produce 2 to 4 quotes, 3 to 5 pain points, and 2 to 3 product ideas.",
+    body: JSON.stringify(
+      useOpenRouter
+        ? {
+            model: OPENAI_MODEL.includes("/") ? OPENAI_MODEL : `openai/${OPENAI_MODEL}`,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "Return a DemandReport as JSON only. Follow the schema exactly. Keep scores within 1 to 10. This is a single-source MVP, so synthesize from the provided signal quotes only. Use sources [{\"name\":\"AI Synthesis\",\"type\":\"ai\"},{\"name\":\"Reddit Signals\",\"type\":\"reddit\"}] when signals are present, otherwise use [{\"name\":\"AI Synthesis\",\"type\":\"ai\"}]. Produce 2 to 4 quotes, 3 to 5 pain points, and 2 to 3 product ideas.",
+              },
+              {
+                role: "user",
+                content: `Create a demand report for the keyword "${keyword}". Use "${generatedAt}" exactly for generatedAt.\n\nProcessed signal quotes:\n${quoteContext}`,
+              },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: DEMAND_REPORT_SCHEMA,
             },
-          ],
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: `Create a demand report for the keyword "${keyword}". Use "${generatedAt}" exactly for generatedAt.\n\nProcessed signal quotes:\n${quoteContext}`,
+          }
+        : {
+            model: OPENAI_MODEL,
+            input: [
+              {
+                role: "system",
+                content: [
+                  {
+                    type: "input_text",
+                    text:
+                      "Return a DemandReport as JSON only. Follow the schema exactly. Keep scores within 1 to 10. This is a single-source MVP, so synthesize from the provided signal quotes only. Use sources [{\"name\":\"AI Synthesis\",\"type\":\"ai\"},{\"name\":\"Reddit Signals\",\"type\":\"reddit\"}] when signals are present, otherwise use [{\"name\":\"AI Synthesis\",\"type\":\"ai\"}]. Produce 2 to 4 quotes, 3 to 5 pain points, and 2 to 3 product ideas.",
+                  },
+                ],
+              },
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "input_text",
+                    text: `Create a demand report for the keyword "${keyword}". Use "${generatedAt}" exactly for generatedAt.\n\nProcessed signal quotes:\n${quoteContext}`,
+                  },
+                ],
+              },
+            ],
+            text: {
+              format: {
+                type: "json_schema",
+                ...DEMAND_REPORT_SCHEMA,
+              },
             },
-          ],
-        },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          ...DEMAND_REPORT_SCHEMA,
-        },
-      },
-    }),
+          },
+    ),
   });
 
   if (!response.ok) {
@@ -337,7 +408,7 @@ async function generateAIReport(keyword: string, topQuotes: QuoteItem[]): Promis
   }
 
   const payload = (await response.json()) as unknown;
-  const outputText = getStructuredOutputText(payload);
+  const outputText = useOpenRouter ? getOpenRouterContent(payload) : getStructuredOutputText(payload);
   return JSON.parse(outputText) as Partial<DemandReport>;
 }
 
