@@ -328,6 +328,11 @@ async function generateAIReport(keyword: string, topQuotes: QuoteItem[]): Promis
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error("[lib/analyze] OpenAI structured request error response", {
+      status: response.status,
+      body: errorText,
+    });
     throw new Error(`OpenAI structured request failed with status ${response.status}.`);
   }
 
