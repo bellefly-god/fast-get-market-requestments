@@ -333,6 +333,17 @@ async function generateAIReport(keyword: string, topQuotes: QuoteItem[]): Promis
       : "No usable signals were available.";
 
   const useOpenRouter = isOpenRouterKey(apiKey);
+  const aiProvider = useOpenRouter ? "openrouter" : "openai";
+  const resolvedModel = useOpenRouter && !OPENAI_MODEL.includes("/") ? `openai/${OPENAI_MODEL}` : OPENAI_MODEL;
+  const requestUrl = useOpenRouter ? `${OPENROUTER_BASE_URL}/chat/completions` : `${OPENAI_BASE_URL}/responses`;
+
+  console.log("[lib/analyze] ai request config", {
+    keyword,
+    provider: aiProvider,
+    model: resolvedModel,
+    url: requestUrl,
+  });
+
   const response = await fetch(useOpenRouter ? `${OPENROUTER_BASE_URL}/chat/completions` : `${OPENAI_BASE_URL}/responses`, {
     method: "POST",
     headers: {
@@ -348,7 +359,7 @@ async function generateAIReport(keyword: string, topQuotes: QuoteItem[]): Promis
     body: JSON.stringify(
       useOpenRouter
         ? {
-            model: OPENAI_MODEL.includes("/") ? OPENAI_MODEL : `openai/${OPENAI_MODEL}`,
+            model: resolvedModel,
             messages: [
               {
                 role: "system",
@@ -400,7 +411,10 @@ async function generateAIReport(keyword: string, topQuotes: QuoteItem[]): Promis
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error("[lib/analyze] OpenAI structured request error response", {
+    console.error("[lib/analyze] AI structured request error response", {
+      provider: aiProvider,
+      model: resolvedModel,
+      url: requestUrl,
       status: response.status,
       body: errorText,
     });
